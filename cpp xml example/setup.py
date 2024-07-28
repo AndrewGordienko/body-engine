@@ -42,7 +42,8 @@ extensions = [
         extra_compile_args=[
             '-std=c++17',
             '-fcolor-diagnostics',
-            '-fansi-escape-codes'
+            '-fansi-escape-codes',
+            '-g',  # Add this line for debugging information
         ],
         extra_link_args=[
             '-F/Applications',

@@ -11,6 +11,7 @@ GLFWWindowManager::~GLFWWindowManager() {
     }
     glfwTerminate();
     mjr_freeContext(&con);
+    mjv_freeScene(&scn);
 }
 
 bool GLFWWindowManager::initialize() {
@@ -30,16 +31,28 @@ void GLFWWindowManager::createWindow(int width, int height, const char* title) {
         exit(-1);
     }
     glfwMakeContextCurrent(window);
+    std::cout << "GLFW window created successfully" << std::endl;
+
+    // Ensure the scene and context are correctly initialized
+    mjv_makeScene(nullptr, &scn, 2000);  // Allocate 2000 elements for the scene
+    mjr_makeContext(nullptr, &con, mjFONTSCALE_150);  // Ensure context is created
+    std::cout << "MuJoCo scene and context created successfully" << std::endl;
 }
 
 void GLFWWindowManager::render(mjModel* m, mjData* d) {
-    if (!window) return;
+    if (!window || !m || !d) {
+        std::cerr << "Invalid pointers in render function" << std::endl;
+        return;  // Add checks for null pointers
+    }
 
+    std::cout << "Rendering..." << std::endl;
+    std::cout << "Model: " << m << ", Data: " << d << std::endl;
     mjv_updateScene(m, d, nullptr, nullptr, nullptr, mjCAT_ALL, &scn);
     mjrRect viewport = {0, 0, 0, 0};
     glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
     mjr_render(viewport, &scn, &con);
     glfwSwapBuffers(window);
+    std::cout << "Rendered frame" << std::endl;
 }
 
 bool GLFWWindowManager::windowShouldClose() {
