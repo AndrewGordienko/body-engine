@@ -1,0 +1,23 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     mujoco_renderer
+relocations:
+  - { offsetInCU: 0x90F, offset: 0x90F, size: 0x8, addend: 0x0, symName: __ZN17GLFWWindowManagerC2Ev, symObjAddr: 0x0, symBinAddr: 0x100002C08, symSize: 0x34 }
+  - { offsetInCU: 0x939, offset: 0x939, size: 0x8, addend: 0x0, symName: __ZN17GLFWWindowManager14initializeGLFWEv, symObjAddr: 0x34, symBinAddr: 0x100002C3C, symSize: 0x88 }
+  - { offsetInCU: 0x95F, offset: 0x95F, size: 0x8, addend: 0x0, symName: __ZN17GLFWWindowManager12createWindowEv, symObjAddr: 0xBC, symBinAddr: 0x100002CC4, symSize: 0xCC }
+  - { offsetInCU: 0x985, offset: 0x985, size: 0x8, addend: 0x0, symName: __ZN17GLFWWindowManagerC1Ev, symObjAddr: 0x188, symBinAddr: 0x100002D90, symSize: 0x2C }
+  - { offsetInCU: 0x9AF, offset: 0x9AF, size: 0x8, addend: 0x0, symName: __ZN17GLFWWindowManagerD2Ev, symObjAddr: 0x1B4, symBinAddr: 0x100002DBC, symSize: 0x34 }
+  - { offsetInCU: 0x9D9, offset: 0x9D9, size: 0x8, addend: 0x0, symName: __ZN17GLFWWindowManager13destroyWindowEv, symObjAddr: 0x1E8, symBinAddr: 0x100002DF0, symSize: 0x54 }
+  - { offsetInCU: 0x9FF, offset: 0x9FF, size: 0x8, addend: 0x0, symName: __ZN17GLFWWindowManagerD1Ev, symObjAddr: 0x248, symBinAddr: 0x100002E50, symSize: 0x2C }
+  - { offsetInCU: 0x5FEB, offset: 0x6A19, size: 0x8, addend: 0x0, symName: __ZN12CustomAntEnvC2EPKc, symObjAddr: 0x0, symBinAddr: 0x100002E7C, symSize: 0x1F8 }
+  - { offsetInCU: 0x6040, offset: 0x6A6E, size: 0x8, addend: 0x0, symName: __ZN12CustomAntEnvC1EPKc, symObjAddr: 0x1F8, symBinAddr: 0x100003074, symSize: 0x34 }
+  - { offsetInCU: 0x6078, offset: 0x6AA6, size: 0x8, addend: 0x0, symName: __ZN12CustomAntEnvD2Ev, symObjAddr: 0x22C, symBinAddr: 0x1000030A8, symSize: 0x6C }
+  - { offsetInCU: 0x60A2, offset: 0x6AD0, size: 0x8, addend: 0x0, symName: __ZN12CustomAntEnvD1Ev, symObjAddr: 0x2A4, symBinAddr: 0x100003114, symSize: 0x2C }
+  - { offsetInCU: 0x60CC, offset: 0x6AFA, size: 0x8, addend: 0x0, symName: __Z8keyboardP10GLFWwindowiiii, symObjAddr: 0x2D0, symBinAddr: 0x100003140, symSize: 0x8C }
+  - { offsetInCU: 0x6148, offset: 0x6B76, size: 0x8, addend: 0x0, symName: __Z12mouse_buttonP10GLFWwindowiii, symObjAddr: 0x35C, symBinAddr: 0x1000031CC, symSize: 0xCC }
+  - { offsetInCU: 0x61A8, offset: 0x6BD6, size: 0x8, addend: 0x0, symName: __Z10mouse_moveP10GLFWwindowdd, symObjAddr: 0x428, symBinAddr: 0x100003298, symSize: 0x1EC }
+  - { offsetInCU: 0x624E, offset: 0x6C7C, size: 0x8, addend: 0x0, symName: __Z6scrollP10GLFWwindowdd, symObjAddr: 0x614, symBinAddr: 0x100003484, symSize: 0x64 }
+  - { offsetInCU: 0x26, offset: 0x6D22, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x1000034E8, symSize: 0x2A4 }
+  - { offsetInCU: 0xF81, offset: 0x7C7D, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x1000034E8, symSize: 0x2A4 }
+  - { offsetInCU: 0x10DC, offset: 0x7DD8, size: 0x8, addend: 0x0, symName: __ZN17GLFWWindowManager9getWindowEv, symObjAddr: 0x2A4, symBinAddr: 0x10000378C, symSize: 0x18 }
+...

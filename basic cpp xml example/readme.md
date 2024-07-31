@@ -1,0 +1,1 @@
+this code uses the example code of working with xml/mujoco with glfw found online, and served to make sure all my bindings were done right and to render my own ant model xml.

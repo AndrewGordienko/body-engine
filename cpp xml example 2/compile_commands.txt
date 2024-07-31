@@ -1,0 +1,10 @@
+/usr/bin/clang++ -std=c++17 -fcolor-diagnostics -fansi-escape-codes -g \
+-I/Applications/MuJoCo.app/Contents/Frameworks/mujoco.framework/Versions/A/Headers \
+-I/usr/local/include -I/opt/homebrew/opt/eigen/include/eigen3 \
+-L/opt/homebrew/lib -lglfw -framework OpenGL \
+-framework /Applications/MuJoCo.app/Contents/Frameworks/mujoco.framework/Versions/A/mujoco \
+-Wl,-rpath,/Applications/MuJoCo.app/Contents/Frameworks \
+GLFWWindowManager.cpp customantenv.cpp main.cpp -o mujoco_renderer
+
+
+./mujoco_renderer "/Users/andrewgordienko/Documents/body engine/cpp xml example 2/ant_model.xml"
