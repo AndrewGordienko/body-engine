@@ -8,3 +8,6 @@ GLFWWindowManager.cpp customantenv.cpp main.cpp -o mujoco_renderer
 
 
 ./mujoco_renderer "/Users/andrewgordienko/Documents/body engine/cpp xml example 2/ant_model.xml"
+
+./mujoco_renderer "/Users/andrewgordienko/Documents/body engine/cpp xml example 2/ant_model.xml" &
+leaks $(pgrep mujoco_renderer)
