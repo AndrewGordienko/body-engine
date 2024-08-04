@@ -1,1 +1,1 @@
-this folder has the code that splits up the basic mujoco/glfw example into the files that I will build off in the future. specific files for rendering and specific files for environmental logic with a main cpp file together. 
+this folder has the code that splits up the basic mujoco/glfw example into the files that I will build off in the future. specific files for rendering and specific files for environmental logic with a main cpp file together.   

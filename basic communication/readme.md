@@ -1,0 +1,1 @@
+the aim of this folder is to start to establish communication between the python and cpp
