@@ -1,0 +1,1 @@
+this folder i want to start actually adding the full functionality of the environment functions instead of just the back and forth ones in basic communication
