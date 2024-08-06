@@ -77,9 +77,13 @@ double CustomAntEnv::getReward() const {
     return 0.0; // Placeholder
 }
 
-double CustomAntEnv::getObservation() const {
-    // Implement your reward calculation logic here
-    return 0.0; // Placeholder
+std::vector<double> CustomAntEnv::getObservation(int input) const {
+    std::vector<double> observation(1, input); // Create a vector with the input value
+    return observation;
+}
+
+void CustomAntEnv::setAction(const std::vector<double>& action) {
+    // Placeholder for setting actions, should be connected to actuators
 }
 
 void CustomAntEnv::render() {

@@ -8,15 +8,22 @@ def main():
         env = mujoco_renderer.CustomAntEnv(model_path)
         print("Environment initialized.")
 
-        # Keep the environment running
-        while not env.should_close():
-            reward = env.get_reward()
-            print("Reward:", reward)
+        # Example action vector
+        action = [0.0] * 10  # Set the action size to 10
 
-            observation = env.get_observation()
+        while not env.should_close():
+            reward = env.getReward()
+            observation = env.getObservation(0)  # Pass the integer value 0 to C++
+            print("Reward:", reward)
             print("Observation:", observation)
+
+            # Send action to the environment
+            env.setAction(action)
+
+            # Render the environment
             env.render()
-            time.sleep(1.0 / 60.0)  # Aim for 60 FPS
+
+            time.sleep(0.01)  # Adjust the sleep time as needed
 
     except KeyboardInterrupt:
         print("Environment shutdown initiated by user.")

@@ -7,11 +7,12 @@
 
 class CustomAntEnv {
 public:
+    std::vector<double> getObservation(int input) const;
     CustomAntEnv(const char* model_path);
     ~CustomAntEnv();
 
     double getReward() const;
-    double getObservation() const;
+    void setAction(const std::vector<double>& action);  // Corrected method signature
     void render();
     bool should_close() const;
 

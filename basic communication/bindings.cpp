@@ -1,4 +1,5 @@
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>  // Add this line for STL conversions
 #include "customantenv.h"
 
 namespace py = pybind11;
@@ -6,8 +7,9 @@ namespace py = pybind11;
 PYBIND11_MODULE(mujoco_renderer, m) {
     py::class_<CustomAntEnv>(m, "CustomAntEnv")
         .def(py::init<const char*>())
-        .def("get_reward", &CustomAntEnv::getReward)
-        .def("get_observation", &CustomAntEnv::getObservation)
+        .def("getReward", &CustomAntEnv::getReward)
+        .def("getObservation", &CustomAntEnv::getObservation)
+        .def("setAction", &CustomAntEnv::setAction)
         .def("render", &CustomAntEnv::render)
         .def("should_close", &CustomAntEnv::should_close);
 }
