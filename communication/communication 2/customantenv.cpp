@@ -6,9 +6,9 @@
 #include <sstream>
 #include <vector>
 
-using namespace tinyxml2; // This allows you to use tinyxml2 classes without the namespace prefix
+using namespace tinyxml2;
 
-CustomAntEnv::CustomAntEnv(const char* model_path) {
+CustomAntEnv::CustomAntEnv(const char* model_path, int max_steps) : step_count(0), max_steps(max_steps) {
     // Initialize GLFW
     if (!glfwInit()) {
         mju_error("Could not initialize GLFW");
@@ -81,7 +81,7 @@ void CustomAntEnv::initializeFlagPositionsFromXML(const char* xml_file) {
 
     // Find all flag elements
     XMLNode* root = xmlDoc.FirstChild();
-    if (root == nullptr) return; // Handle error
+    if (root == nullptr) return;
 
     int flagIndex = 0;
     for (XMLElement* elem = root->FirstChildElement("geom"); elem != nullptr; elem = elem->NextSiblingElement("geom")) {
@@ -127,13 +127,53 @@ CustomAntEnv::~CustomAntEnv() {
     glfwTerminate();
 }
 
-double CustomAntEnv::getReward() const {
-    // Implement your reward calculation logic here
-    return 0.0; // Placeholder
+Eigen::VectorXd CustomAntEnv::calculateReward() {
+    Eigen::VectorXd rewards = Eigen::VectorXd::Zero(NUM_CREATURES);
+
+    for (int creatureIdx = 0; creatureIdx < NUM_CREATURES; ++creatureIdx) {
+        // Obtain the torso position and the flag position for the current creature
+        Eigen::Vector3d torso_position = getCreaturePosition(creatureIdx);
+        Eigen::Vector3d flag_pos = flag_positions.row(creatureIdx);
+        double distanceToFinalFlag = (torso_position - flag_pos).norm();
+
+        // Calculate the speed reward
+        double speed_reward_factor = 1.0;
+        double speed_reward = speed_reward_factor / (1 + d->time);
+
+        // Calculate the energy penalty
+        double energy_used = 0.0;
+        for (int i = 0; i < m->nu; ++i) {
+            energy_used += std::abs(d->ctrl[creatureIdx * m->nu + i]);
+        }
+        double energy_penalty = energy_used * 0.0005;
+
+        // Calculate the flag reached reward
+        double flag_reached_reward = (distanceToFinalFlag < 0.1) ? 10.0 : 0.0;
+
+        // Calculate the intermediate reward
+        auto [closestIndex, distanceToClosestIntermediate] = getClosestTargetIndexAndDistance(creatureIdx, torso_position);
+        double intermediate_reward = 0.0;
+        if (closestIndex != -1 && distanceToClosestIntermediate < 0.5) {
+            intermediate_reward = (closestIndex + 1) * 10.0;
+            intermediate_targets[creatureIdx].erase(intermediate_targets[creatureIdx].begin() + closestIndex);
+        }
+
+        // Calculate gyroscope-based stability reward
+        int gyroIndex = creatureIdx * 3;
+        double gyro_x = d->sensordata[gyroIndex];
+        double gyro_y = d->sensordata[gyroIndex + 1];
+        double gyro_z = d->sensordata[gyroIndex + 2];
+        double gyro_stability_reward = -0.1 * (std::abs(gyro_x) + std::abs(gyro_y) + std::abs(gyro_z));
+
+        // Combine all reward components
+        rewards(creatureIdx) = speed_reward + flag_reached_reward - energy_penalty + intermediate_reward + gyro_stability_reward;
+    }
+
+    return rewards;
 }
 
 Eigen::MatrixXd CustomAntEnv::getObservation() const {
-    const int OBSERVATION_DIMS_PER_CREATURE = MAX_LEGS * MAX_PARTS_PER_LEG * DATA_POINTS_PER_SUBPART + DISTANCE_TO_TARGET_DIMS + 3; // Adjust these constants as per your model
+    const int OBSERVATION_DIMS_PER_CREATURE = MAX_LEGS * MAX_PARTS_PER_LEG * DATA_POINTS_PER_SUBPART + DISTANCE_TO_TARGET_DIMS + 3;
 
     // Initialize the observation matrix for all creatures
     Eigen::MatrixXd observations = Eigen::MatrixXd::Zero(NUM_CREATURES, OBSERVATION_DIMS_PER_CREATURE);
@@ -144,15 +184,12 @@ Eigen::MatrixXd CustomAntEnv::getObservation() const {
         // Process leg and part data
         for (int legIdx = 0; legIdx < MAX_LEGS; ++legIdx) {
             for (int partIdx = 0; partIdx < MAX_PARTS_PER_LEG; ++partIdx) {
-                // Placeholder logic for physics index calculation
-                int physicsIdx = calculatePhysicsIndex(creatureIdx, legIdx, partIdx); // Implement this function based on your simulation setup
+                int physicsIdx = calculatePhysicsIndex(creatureIdx, legIdx, partIdx);
 
-                // Example placeholders for retrieving sensor data
                 double angle = d->qpos[physicsIdx];
                 double velocity = d->qvel[physicsIdx];
-                double acceleration = d->sensordata[physicsIdx]; // Assuming acceleration data is stored similarly
+                double acceleration = d->sensordata[physicsIdx];
 
-                // Populate observations with the retrieved data
                 observations(creatureIdx, observationIndex++) = angle;
                 observations(creatureIdx, observationIndex++) = velocity;
                 observations(creatureIdx, observationIndex++) = acceleration;
@@ -160,15 +197,15 @@ Eigen::MatrixXd CustomAntEnv::getObservation() const {
         }
 
         // Adding distance to target data
-        Eigen::Vector2d distanceToTarget = calculateDistanceToTarget(creatureIdx); // Implement this function based on your simulation setup
+        Eigen::Vector2d distanceToTarget = calculateDistanceToTarget(creatureIdx);
         observations(creatureIdx, observationIndex++) = distanceToTarget.x();
         observations(creatureIdx, observationIndex++) = distanceToTarget.y();
 
         // Gyroscope data integration
-        int gyroIndex = creatureIdx * 3; // Gyroscope data index calculation
-        double gyro_x = d->sensordata[gyroIndex];     // Gyro X
-        double gyro_y = d->sensordata[gyroIndex + 1]; // Gyro Y
-        double gyro_z = d->sensordata[gyroIndex + 2]; // Gyro Z
+        int gyroIndex = creatureIdx * 3;
+        double gyro_x = d->sensordata[gyroIndex];
+        double gyro_y = d->sensordata[gyroIndex + 1];
+        double gyro_z = d->sensordata[gyroIndex + 2];
 
         observations(creatureIdx, observationIndex++) = gyro_x;
         observations(creatureIdx, observationIndex++) = gyro_y;
@@ -178,14 +215,31 @@ Eigen::MatrixXd CustomAntEnv::getObservation() const {
 }
 
 Eigen::Vector3d CustomAntEnv::getCreaturePosition(int creatureIdx) const {
-    // Assuming the root joint of each creature is the first element of its qpos
-    int rootIndex = creatureIdx * MAX_LEGS * MAX_PARTS_PER_LEG * 3; // Adjust as necessary
+    int rootIndex = creatureIdx * MAX_LEGS * MAX_PARTS_PER_LEG * 3;
     Eigen::Vector3d position(d->qpos[rootIndex], d->qpos[rootIndex + 1], d->qpos[rootIndex + 2]);
     return position;
 }
 
 int CustomAntEnv::calculatePhysicsIndex(int creatureIdx, int legIdx, int partIdx) const {
     return creatureIdx * MAX_LEGS * MAX_PARTS_PER_LEG + legIdx * MAX_PARTS_PER_LEG + partIdx;
+}
+
+int CustomAntEnv::calculateControlIndex(int creatureIdx, int legIdx, int partIdx) const {
+    int index = 0; // Initialize with the starting index for this creature
+
+    // First, add offset for all previous creatures
+    for (int prevCreature = 0; prevCreature < creatureIdx; ++prevCreature) {
+        // Assuming each creature has the same number of motors, which is MAX_LEGS * MAX_PARTS_PER_LEG
+        index += MAX_LEGS * MAX_PARTS_PER_LEG * CONTROLS_PER_PART;
+    }
+
+    // Then, calculate index for current creature
+    for (int i = 0; i < legIdx; ++i) {
+        index += MAX_PARTS_PER_LEG * CONTROLS_PER_PART;
+    }
+    index += partIdx * CONTROLS_PER_PART;
+
+    return index;
 }
 
 Eigen::Vector2d CustomAntEnv::calculateDistanceToTarget(int creatureIdx) const {
@@ -196,15 +250,27 @@ Eigen::Vector2d CustomAntEnv::calculateDistanceToTarget(int creatureIdx) const {
     return Eigen::Vector2d(distanceVec.x(), distanceVec.y());
 }
 
-void CustomAntEnv::setAction(const std::vector<double>& action) {
-    // Placeholder for setting actions, should be connected to actuators
+void CustomAntEnv::setAction(const Eigen::MatrixXd& actions) {
+    // Assuming actions is a NUM_CREATURES x (MAX_LEGS * MAX_PARTS_PER_LEG) Eigen::MatrixXd
+    for (int creatureIdx = 0; creatureIdx < NUM_CREATURES; ++creatureIdx) {
+        for (int legIdx = 0; legIdx < MAX_LEGS; ++legIdx) {
+            for (int partIdx = 0; partIdx < MAX_PARTS_PER_LEG; ++partIdx) {
+                int actionIndex = legIdx * MAX_PARTS_PER_LEG + partIdx;
+                if (actionIndex < actions.cols()) {
+                    int controlIndex = calculateControlIndex(creatureIdx, legIdx, partIdx);
+                    if (controlIndex >= 0) { // Check if the motor exists
+                        double actionValue = actions(creatureIdx, actionIndex);
+                        d->ctrl[controlIndex] = actionValue;
+                    }
+                }
+            }
+        }
+    }
 }
 
 void CustomAntEnv::render() {
-    // Step the simulation
     mj_step(m, d);
 
-    // Update scene and render
     mjrRect viewport = {0, 0, 0, 0};
     glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
     mjv_updateScene(m, d, &opt, NULL, &cam, mjCAT_ALL, &scn);
@@ -217,10 +283,19 @@ bool CustomAntEnv::should_close() const {
     return glfwWindowShouldClose(window);
 }
 
+bool CustomAntEnv::isDone() const {
+    return step_count >= max_steps;
+}
+
+std::pair<int, double> CustomAntEnv::getClosestTargetIndexAndDistance(int creatureIdx, const Eigen::Vector3d& torso_position) const {
+    // Implement logic to find the closest target index and distance
+    // Placeholder return value
+    return { -1, std::numeric_limits<double>::max() };
+}
+
 // Existing callback functions...
 
 void keyboard(GLFWwindow* window, int key, int scancode, int act, int mods) {
-    // backspace: reset simulation
     if (act == GLFW_PRESS && key == GLFW_KEY_BACKSPACE) {
         CustomAntEnv* env = reinterpret_cast<CustomAntEnv*>(glfwGetWindowUserPointer(window));
         mj_resetData(env->m, env->d);
@@ -231,38 +306,30 @@ void keyboard(GLFWwindow* window, int key, int scancode, int act, int mods) {
 void mouse_button(GLFWwindow* window, int button, int act, int mods) {
     CustomAntEnv* env = reinterpret_cast<CustomAntEnv*>(glfwGetWindowUserPointer(window));
 
-    // update button state
     env->button_left = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS);
     env->button_middle = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS);
     env->button_right = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
 
-    // update mouse position
     glfwGetCursorPos(window, &env->lastx, &env->lasty);
 }
 
 void mouse_move(GLFWwindow* window, double xpos, double ypos) {
     CustomAntEnv* env = reinterpret_cast<CustomAntEnv*>(glfwGetWindowUserPointer(window));
 
-    // no buttons down: nothing to do
     if (!env->button_left && !env->button_middle && !env->button_right) {
         return;
     }
 
-    // compute mouse displacement, save
     double dx = xpos - env->lastx;
     double dy = ypos - env->lasty;
     env->lastx = xpos;
     env->lasty = ypos;
 
-    // get current window size
     int width, height;
     glfwGetWindowSize(window, &width, &height);
 
-    // get shift key state
-    bool mod_shift = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
-                      glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
+    bool mod_shift = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
 
-    // determine action based on mouse button
     mjtMouse action;
     if (env->button_right) {
         action = mod_shift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
@@ -272,7 +339,6 @@ void mouse_move(GLFWwindow* window, double xpos, double ypos) {
         action = mjMOUSE_ZOOM;
     }
 
-    // move camera
     mjv_moveCamera(env->m, action, dx / height, dy / height, &env->scn, &env->cam);
 }
 
