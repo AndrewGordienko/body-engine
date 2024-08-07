@@ -5,6 +5,7 @@
 #include <mujoco/mujoco.h>
 #include <GLFW/glfw3.h>
 #include <Eigen/Dense>
+#include "tinyxml2.h" // Include tinyxml2 for XML parsing
 
 class CustomAntEnv {
 public:
@@ -41,10 +42,11 @@ private:
     static constexpr int NUM_CREATURES = 9;
     static constexpr int DISTANCE_TO_TARGET_DIMS = 2; // Define this constant
 
-    std::vector<Eigen::Vector3d> targetPositions; // Store target positions
+    Eigen::MatrixXd flag_positions; // Store flag positions
 
     Eigen::Vector3d getCreaturePosition(int creatureIdx) const; // Helper function to get creature position
-    void printMuJoCoData() const; // Helper function to print MuJoCo data arrays
+    void initializeFlagPositionsFromXML(const char* xml_file); // Initialize flag positions from XML
+    std::vector<double> parsePosition(const char* posAttr); // Helper function to parse position attribute
 };
 
 // Function declarations

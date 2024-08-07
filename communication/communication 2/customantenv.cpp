@@ -1,7 +1,12 @@
 #include "customantenv.h"
+#include "tinyxml2.h"
 #include <iostream>
 #include <Eigen/Dense>
-#include <pybind11/stl.h> // Add this line
+#include <pybind11/stl.h>
+#include <sstream>
+#include <vector>
+
+using namespace tinyxml2; // This allows you to use tinyxml2 classes without the namespace prefix
 
 CustomAntEnv::CustomAntEnv(const char* model_path) {
     // Initialize GLFW
@@ -59,20 +64,53 @@ CustomAntEnv::CustomAntEnv(const char* model_path) {
     lastx = 0;
     lasty = 0;
 
-    targetPositions.resize(NUM_CREATURES);
-    targetPositions[0] = Eigen::Vector3d(-9.829122864755202, -7.580250411415851, 0);
-    targetPositions[1] = Eigen::Vector3d(-3.2432511693373502, -5.184202959194728, 0);
-    targetPositions[2] = Eigen::Vector3d(9.383693260528094, -8.48351031738805, 0);
-    targetPositions[3] = Eigen::Vector3d(-9.999815351599246, 0.03595142153308704, 0);
-    targetPositions[4] = Eigen::Vector3d(-3.3102884223667757, -1.1366576268800046, 0);
-    targetPositions[5] = Eigen::Vector3d(3.138512451079431, 0.9748853565686515, 0);
-    targetPositions[6] = Eigen::Vector3d(-4.4107699551202, 9.308045195428939, 0);
-    targetPositions[7] = Eigen::Vector3d(-0.5886572938236538, 9.95014240147102, 0);
-    targetPositions[8] = Eigen::Vector3d(3.076414191584454, 7.227365253786342, 0);
+    // Initialize flag positions from XML file
+    initializeFlagPositionsFromXML("/Users/andrewgordienko/Documents/body engine/communication/communication 2/ant_model.xml");
+}
 
-    // Print MuJoCo data arrays
-    // printMuJoCoData();
+void CustomAntEnv::initializeFlagPositionsFromXML(const char* xml_file) {
+    XMLDocument xmlDoc;
+    XMLError eResult = xmlDoc.LoadFile(xml_file);
+    if (eResult != XML_SUCCESS) {
+        std::cerr << "Failed to load XML file. Error: " << xmlDoc.ErrorName() << std::endl;
+        return;
+    }
 
+    // Initialize flag_positions matrix size
+    flag_positions = Eigen::MatrixXd(NUM_CREATURES, 3);
+
+    // Find all flag elements
+    XMLNode* root = xmlDoc.FirstChild();
+    if (root == nullptr) return; // Handle error
+
+    int flagIndex = 0;
+    for (XMLElement* elem = root->FirstChildElement("geom"); elem != nullptr; elem = elem->NextSiblingElement("geom")) {
+        const char* name = elem->Attribute("name");
+        if (name != nullptr && std::string(name).find("flag_") == 0) {
+            // Parse position attribute
+            const char* posAttr = elem->Attribute("pos");
+            std::vector<double> posValues = parsePosition(posAttr);
+
+            // Assign to flag_positions matrix
+            if (posValues.size() == 3 && flagIndex < NUM_CREATURES) {
+                flag_positions.row(flagIndex) = Eigen::Vector3d(posValues[0], posValues[1], posValues[2]);
+                ++flagIndex;
+            }
+        }
+    }
+}
+
+std::vector<double> CustomAntEnv::parsePosition(const char* posAttr) {
+    std::vector<double> pos;
+    if (posAttr != nullptr) {
+        std::stringstream ss(posAttr);
+        double val;
+        while (ss >> val) {
+            pos.push_back(val);
+            if (ss.peek() == ' ') ss.ignore();
+        }
+    }
+    return pos;
 }
 
 CustomAntEnv::~CustomAntEnv() {
@@ -139,44 +177,22 @@ Eigen::MatrixXd CustomAntEnv::getObservation() const {
     return observations;
 }
 
-void CustomAntEnv::printMuJoCoData() const {
-    // Print relevant sections of the MuJoCo data arrays
-    std::cout << "qpos:\n";
-    for (int i = 0; i < 30; ++i) { // Adjust the range as needed
-        std::cout << "qpos[" << i << "] = " << d->qpos[i] << "\n";
-    }
-
-    std::cout << "qvel:\n";
-    for (int i = 0; i < 30; ++i) { // Adjust the range as needed
-        std::cout << "qvel[" << i << "] = " << d->qvel[i] << "\n";
-    }
-
-    std::cout << "sensordata:\n";
-    for (int i = 0; i < 30; ++i) { // Adjust the range as needed
-        std::cout << "sensordata[" << i << "] = " << d->sensordata[i] << "\n";
-    }
-}
-
 Eigen::Vector3d CustomAntEnv::getCreaturePosition(int creatureIdx) const {
     // Assuming the root joint of each creature is the first element of its qpos
     int rootIndex = creatureIdx * MAX_LEGS * MAX_PARTS_PER_LEG * 3; // Adjust as necessary
     Eigen::Vector3d position(d->qpos[rootIndex], d->qpos[rootIndex + 1], d->qpos[rootIndex + 2]);
-    std::cout << "Creature " << creatureIdx << " Position: [" << position.x() << ", " << position.y() << ", " << position.z() << "]\n";
     return position;
 }
 
 int CustomAntEnv::calculatePhysicsIndex(int creatureIdx, int legIdx, int partIdx) const {
-    int index = creatureIdx * MAX_LEGS * MAX_PARTS_PER_LEG + legIdx * MAX_PARTS_PER_LEG + partIdx;
-    std::cout << "Physics Index for Creature " << creatureIdx << ", Leg " << legIdx << ", Part " << partIdx << ": " << index << "\n";
-    return index;
+    return creatureIdx * MAX_LEGS * MAX_PARTS_PER_LEG + legIdx * MAX_PARTS_PER_LEG + partIdx;
 }
 
 Eigen::Vector2d CustomAntEnv::calculateDistanceToTarget(int creatureIdx) const {
     Eigen::Vector3d creaturePos = getCreaturePosition(creatureIdx);
-    Eigen::Vector3d targetPos = targetPositions[creatureIdx];
+    Eigen::Vector3d targetPos = flag_positions.row(creatureIdx);
 
     Eigen::Vector3d distanceVec = targetPos - creaturePos;
-    std::cout << "Distance to Target for Creature " << creatureIdx << ": [" << distanceVec.x() << ", " << distanceVec.y() << ", " << distanceVec.z() << "]\n";
     return Eigen::Vector2d(distanceVec.x(), distanceVec.y());
 }
 
