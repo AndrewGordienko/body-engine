@@ -18,6 +18,8 @@ public:
     void render();
     bool should_close() const;
     bool isDone() const;  // Add isDone method
+    void loadNewModel(const std::string& xml_file);  // Add loadNewModel method
+    void reset(); // Add reset method
 
     int calculatePhysicsIndex(int creatureIdx, int legIdx, int partIdx) const;
     Eigen::Vector2d calculateDistanceToTarget(int creatureIdx) const;

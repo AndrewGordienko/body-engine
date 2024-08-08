@@ -13,5 +13,6 @@ PYBIND11_MODULE(mujoco_renderer, m) {
         .def("render", &CustomAntEnv::render)
         .def("should_close", &CustomAntEnv::should_close)
         .def("setAction", &CustomAntEnv::setAction)
-        .def("isDone", &CustomAntEnv::isDone);  // Expose isDone method
+        .def("isDone", &CustomAntEnv::isDone)  // Expose isDone method
+        .def("loadNewModel", &CustomAntEnv::loadNewModel);  // Expose loadNewModel method
 }

@@ -1,35 +1,57 @@
 import mujoco_renderer
 import numpy as np
 import time
+from asset_components import create_ant_model
 
 def main():
     try:
-        model_path = "/Users/andrewgordienko/Documents/body engine/communication/communication 2/ant_model.xml"
-        print("Initializing environment...")
-        env = mujoco_renderer.CustomAntEnv(model_path, 1000)
-        print("Environment initialized.")
-
         num_creatures = 9  # Number of creatures
         action_size = 12   # Action size per creature (adjust based on your model's requirement)
+        max_steps = 100   # Max steps per episode
+        episodes = 15      # Number of episodes
+        flag_starting_radius = 3.5
 
-        while not env.should_close():
-            reward = env.calculateReward()
-            print("Reward:", reward)
-            observation = env.getObservation()
-            done = env.isDone()
-            print("Done:", done)
+        base_path = "/Users/andrewgordienko/Documents/body engine/communication/communication 2"
 
-            # Generate a random action for each creature
-            action = np.random.uniform(-1.0, 1.0, (num_creatures, action_size))
+        for episode in range(episodes):
+            print(f"Episode {episode + 1}/{episodes}")
+
+            # Generate a new ant model and save it to a file
+            xml_string, leg_info = create_ant_model(flag_starting_radius)
+            xml_filename = f'{base_path}/xml_world_episode_{episode}.xml'
             
-            # Send action to the environment
-            env.setAction(action)
+            with open(xml_filename, 'w') as file:
+                file.write(xml_string)
+            
+            print("Initializing environment...")
+            env = mujoco_renderer.CustomAntEnv(xml_filename, max_steps)
+            print("Environment initialized.")
 
-            # Render the environment
-            env.render()
+            for step in range(max_steps):
+                if env.should_close():
+                    break
 
-            # Optional: Adjust the sleep time as needed
-            # time.sleep(0.01)
+                reward = env.calculateReward()
+                observation = env.getObservation()
+                done = env.isDone()
+                print(f"Step: {step}, Reward: {reward}, Done: {done}")
+
+                # Generate a random action for each creature
+                action = np.random.uniform(-1.0, 1.0, (num_creatures, action_size))
+                
+                # Send action to the environment
+                env.setAction(action)
+
+                # Render the environment
+                env.render()
+
+                if done:
+                    break
+
+            print(f"Episode {episode + 1} completed")
+
+            # Explicitly delete the environment to free resources
+            del env
 
     except KeyboardInterrupt:
         print("Environment shutdown initiated by user.")

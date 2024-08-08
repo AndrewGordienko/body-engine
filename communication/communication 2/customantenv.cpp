@@ -100,6 +100,33 @@ void CustomAntEnv::initializeFlagPositionsFromXML(const char* xml_file) {
     }
 }
 
+void CustomAntEnv::loadNewModel(const std::string& xml_file) {
+    if (d) {
+        mj_deleteData(d);
+        d = nullptr;
+    }
+    if (m) {
+        mj_deleteModel(m);
+        m = nullptr;
+    }
+
+    char error[1000] = "";
+    m = mj_loadXML(xml_file.c_str(), nullptr, error, 1000);
+    if (!m) {
+        std::cerr << "Load model error: " << error << std::endl;
+        throw std::runtime_error("Load model error.");
+    }
+
+    d = mj_makeData(m);
+    reset(); // Reset the environment with the new model
+}
+
+void CustomAntEnv::reset() {
+    step_count = 0;  // Reset the step count
+    mj_resetData(m, d);  // Reset the MuJoCo data
+    mj_forward(m, d);  // Forward the simulation to recompute state
+}
+
 std::vector<double> CustomAntEnv::parsePosition(const char* posAttr) {
     std::vector<double> pos;
     if (posAttr != nullptr) {
@@ -277,6 +304,7 @@ void CustomAntEnv::render() {
     mjr_render(viewport, &scn, &con);
     glfwSwapBuffers(window);
     glfwPollEvents();
+    step_count++;  // Increment step count on each render
 }
 
 bool CustomAntEnv::should_close() const {
