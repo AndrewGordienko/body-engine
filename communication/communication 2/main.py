@@ -1,27 +1,35 @@
 import mujoco_renderer
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 from ppo_agent import PPOAgent
 from asset_components import create_ant_model
 
 def main():
-    num_creatures = 9  # Number of creatures
-    obs_per_creature = 41  # Assuming each creature has 41 features (adjust based on your environment)
-    action_size = 12   # Action size per creature
-    max_steps = 1000  # Max steps per episode
-    episodes = 15      # Number of episodes
+    num_creatures = 9
+    obs_per_creature = 41
+    action_size = 12
+    max_steps = 1000
+    episodes = 15
     flag_starting_radius = 3.5
 
     base_path = "/Users/andrewgordienko/Documents/body engine/communication/communication 2"
 
-    # Initialize the PPO agent
-    input_dims = [obs_per_creature]  # Each creature has 41 features; do not flatten for the network input
+    input_dims = [obs_per_creature]
     agent = PPOAgent(n_actions=action_size, input_dims=input_dims, max_memory_size=1000)
+
+    # Initialize plotting
+    plt.ion()
+    fig, axs = plt.subplots(3, 1, figsize=(10, 15))
+    fig.subplots_adjust(hspace=0.4)
+
+    episode_scores = []
+    actor_losses = []
+    critic_losses = []
 
     for episode in range(episodes):
         print(f"Episode {episode + 1}/{episodes}")
 
-        # Generate a new ant model and save it to a file
         xml_string, leg_info = create_ant_model(flag_starting_radius)
         xml_filename = f'{base_path}/xml_world_episode_{episode}.xml'
         
@@ -39,23 +47,18 @@ def main():
             if env.should_close():
                 break
 
-            # Get observation and ensure it is processed correctly
             observation = env.getObservation()
-
-            # Process each creature's observation individually
             actions = []
             log_probs = []
             values = []
-            rewards = []
 
             for creature_idx in range(num_creatures):
-                creature_obs = observation[creature_idx, :]  # Extract the observation for this creature
+                creature_obs = observation[creature_idx, :]
                 action, log_prob, value = agent.choose_action(creature_obs)
                 actions.append(action)
                 log_probs.append(log_prob)
                 values.append(value)
 
-            # Convert actions to the appropriate format and set them in the environment
             combined_actions = np.vstack(actions)
             env.setAction(combined_actions)
             env.render()
@@ -71,14 +74,40 @@ def main():
             if done:
                 break
 
-        agent.learn()
+        avg_actor_loss, avg_critic_loss = agent.learn()
+        episode_scores.append(score)
+        actor_losses.append(avg_actor_loss)
+        critic_losses.append(avg_critic_loss)
         print(f'Episode {episode + 1} completed with score {score}')
 
-        # Save the model after each episode
-        agent.save_models(directory=base_path)
+        # Update plots
+        axs[0].plot(episode_scores, label='Score')
+        axs[0].set_title('Score per Episode')
+        axs[0].set_xlabel('Episode')
+        axs[0].set_ylabel('Score')
 
-        # Explicitly delete the environment to free resources
+        axs[1].plot(actor_losses, label='Actor Loss', color='orange')
+        axs[1].set_title('Actor Loss per Episode')
+        axs[1].set_xlabel('Episode')
+        axs[1].set_ylabel('Loss')
+
+        axs[2].plot(critic_losses, label='Critic Loss', color='green')
+        axs[2].set_title('Critic Loss per Episode')
+        axs[2].set_xlabel('Episode')
+        axs[2].set_ylabel('Loss')
+
+        for ax in axs:
+            ax.legend()
+            ax.grid(True)
+
+        fig.canvas.draw()
+        fig.canvas.flush_events()
+
+        agent.save_models(directory=base_path)
         del env
+
+    plt.ioff()
+    plt.show()
 
 if __name__ == "__main__":
     main()

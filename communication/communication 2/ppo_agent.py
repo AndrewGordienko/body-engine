@@ -127,13 +127,16 @@ class PPOAgent:
     def learn(self):
         self.memory.shuffle_and_crop_memory()
 
+        actor_losses = []
+        critic_losses = []
+
         for _ in range(self.n_epochs):
             state_arr, action_arr, old_prob_arr, vals_arr, reward_arr, dones_arr, batches = self.memory.generate_batches()
 
             values = torch.tensor(vals_arr, dtype=torch.float32).to(DEVICE)
             advantage = torch.zeros(len(reward_arr), dtype=torch.float32).to(DEVICE)
 
-            reward_arr = np.array(reward_arr, dtype=np.float32)  # Ensure rewards are float32
+            reward_arr = np.array(reward_arr, dtype=np.float32)
             for t in range(len(reward_arr) - 1):
                 discount = 1
                 a_t = 0
@@ -157,9 +160,11 @@ class PPOAgent:
                 weighted_clipped_probs = torch.clamp(prob_ratio, 1 - self.policy_clip, 1 + self.policy_clip) * advantage[batch]
 
                 actor_loss = -torch.min(weighted_probs, weighted_clipped_probs).mean()
+                actor_losses.append(actor_loss.item())
 
                 returns = advantage[batch] + values[batch]
                 critic_loss = F.mse_loss(critic_value, returns)
+                critic_losses.append(critic_loss.item())
 
                 loss = actor_loss + 0.5 * critic_loss
 
@@ -170,6 +175,7 @@ class PPOAgent:
                 self.critic.optimizer.step()
 
         self.memory.clear_memory()
+        return np.mean(actor_losses), np.mean(critic_losses)  # Return the average losses
 
     def remember(self, state, action, probs, vals, reward, done):
         self.memory.store_memory(state, action, probs, vals, reward, done)
