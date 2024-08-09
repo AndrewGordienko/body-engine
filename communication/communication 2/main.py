@@ -7,7 +7,7 @@ def main():
     try:
         num_creatures = 9  # Number of creatures
         action_size = 12   # Action size per creature (adjust based on your model's requirement)
-        max_steps = 100   # Max steps per episode
+        max_steps = 1000  # Max steps per episode
         episodes = 15      # Number of episodes
         flag_starting_radius = 3.5
 
@@ -34,7 +34,7 @@ def main():
                 reward = env.calculateReward()
                 observation = env.getObservation()
                 done = env.isDone()
-                print(f"Step: {step}, Reward: {reward}, Done: {done}")
+                #print(f"Step: {step}, Reward: {reward}, Done: {done}")
 
                 # Generate a random action for each creature
                 action = np.random.uniform(-1.0, 1.0, (num_creatures, action_size))

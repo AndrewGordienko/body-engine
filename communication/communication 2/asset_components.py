@@ -101,11 +101,15 @@ def create_wall_xml(name, pos, size):
     })
 
 def create_ant_model(flag_radius):
-    num_creatures=9
+    num_creatures = 9
     # Ensure the function is optimized for 9 creatures
     assert num_creatures == 9, "This setup is optimized for 9 creatures."
     
     mujoco_model = ET.Element('mujoco')
+
+    # Add option tag to set the timestep
+    ET.SubElement(mujoco_model, 'option', attrib={'timestep': '0.002'})
+
     mujoco_model.append(create_assets_xml())
     worldbody = ET.SubElement(mujoco_model, 'worldbody')
     world_size = (10, 10, 0.1)  # Define the world size
@@ -135,7 +139,6 @@ def create_ant_model(flag_radius):
         layer = creature_id + 1
         color = colors[creature_id % len(colors)]
         initial_position = max_spread_positions[creature_id]
-        # flag_radius = 3.5  # Adjust the radius as needed 3.5 is ideal flag radius
 
         torso_obj = Torso(name=f'torso_{creature_id}', position=initial_position)
         torso_xml = torso_obj.to_xml(layer, color)
@@ -202,13 +205,9 @@ def create_ant_model(flag_radius):
 
     # Calculate positions for the walls so they encircle the floor
     walls = [
-        # North wall
         ('north_wall', (0, half_floor_size + wall_thickness / 2 + 5, wall_height / 2), (floor_size / 2 + wall_thickness / 2 + 5, wall_thickness / 2, wall_height / 2)),
-        # South wall
         ('south_wall', (0, -half_floor_size - wall_thickness / 2 - 5, wall_height / 2), (floor_size / 2 + wall_thickness / 2 + 5, wall_thickness / 2, wall_height / 2)),
-        # East wall
         ('east_wall', (half_floor_size + wall_thickness / 2 + 5, 0, wall_height / 2), (wall_thickness / 2, floor_size / 2 + wall_thickness / 2 + 5, wall_height / 2)),
-        # West wall
         ('west_wall', (-half_floor_size - wall_thickness / 2 - 5, 0, wall_height / 2), (wall_thickness / 2, floor_size / 2 + wall_thickness / 2 + 5, wall_height / 2))
     ]
 
