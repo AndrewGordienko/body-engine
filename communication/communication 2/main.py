@@ -20,12 +20,17 @@ def main():
 
     # Initialize plotting
     plt.ion()
-    fig, axs = plt.subplots(3, 1, figsize=(10, 15))
+    fig, axs = plt.subplots(3, 1, figsize=(6, 9))
     fig.subplots_adjust(hspace=0.4)
 
     episode_scores = []
     actor_losses = []
     critic_losses = []
+
+    # Initialize legend only once
+    axs[0].plot([], [], label='Score')
+    axs[1].plot([], [], label='Actor Loss', color='orange')
+    axs[2].plot([], [], label='Critic Loss', color='green')
 
     for episode in range(episodes):
         print(f"Episode {episode + 1}/{episodes}")
@@ -81,23 +86,23 @@ def main():
         print(f'Episode {episode + 1} completed with score {score}')
 
         # Update plots
-        axs[0].plot(episode_scores, label='Score')
+        axs[0].plot(episode_scores)
         axs[0].set_title('Score per Episode')
         axs[0].set_xlabel('Episode')
         axs[0].set_ylabel('Score')
 
-        axs[1].plot(actor_losses, label='Actor Loss', color='orange')
+        axs[1].plot(actor_losses, color='orange')
         axs[1].set_title('Actor Loss per Episode')
         axs[1].set_xlabel('Episode')
         axs[1].set_ylabel('Loss')
 
-        axs[2].plot(critic_losses, label='Critic Loss', color='green')
+        axs[2].plot(critic_losses, color='green')
         axs[2].set_title('Critic Loss per Episode')
         axs[2].set_xlabel('Episode')
         axs[2].set_ylabel('Loss')
 
         for ax in axs:
-            ax.legend()
+            ax.legend(loc='upper right')
             ax.grid(True)
 
         fig.canvas.draw()

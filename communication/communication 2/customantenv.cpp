@@ -15,7 +15,7 @@ CustomAntEnv::CustomAntEnv(const char* model_path, int max_steps) : step_count(0
     }
 
     // Create a visible GLFW window
-    window = glfwCreateWindow(1200, 900, "MuJoCo Environment", NULL, NULL);
+    window = glfwCreateWindow(900, 600, "MuJoCo Environment", NULL, NULL);
     if (!window) {
         glfwTerminate();
         mju_error("Could not create GLFW window");

@@ -7,3 +7,12 @@
 GLFWWindowManager.cpp customantenv.cpp bindings.cpp -o mujoco_renderer$(python3-config --extension-suffix)
 
 leaks --atExit -- python3 main.py
+
+
+ communication 2 % /usr/bin/clang++ -std=c++17 -fcolor-diagnostics -fansi-escape-codes -g -shared -undefined dynamic_lookup -fPIC \
+-I/Applications/MuJoCo.app/Contents/Frameworks/mujoco.framework/Versions/A/Headers \
+-I/usr/local/include -I/opt/homebrew/opt/eigen/include/eigen3 -I/opt/homebrew/Cellar/pybind11/2.10.4/include -I/opt/homebrew/opt/python@3.9/Frameworks/Python.framework/Versions/3.9/include/python3.9 \
+-I/opt/homebrew/include -L/opt/homebrew/lib -ltinyxml2 -lglfw -framework OpenGL \
+-framework /Applications/MuJoCo.app/Contents/Frameworks/mujoco.framework/Versions/A/mujoco \
+-Wl,-rpath,/Applications/MuJoCo.app/Contents/Frameworks \
+GLFWWindowManager.cpp customantenv.cpp bindings.cpp -o mujoco_renderer$(python3.9-config --extension-suffix)
