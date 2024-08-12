@@ -38,6 +38,8 @@ public:
     double lastx;
     double lasty;
 
+    void calculateIntermediateTargets(); // Add this line for the new method
+
 private:
     static constexpr int MAX_LEGS = 4;
     static constexpr int MAX_PARTS_PER_LEG = 3;

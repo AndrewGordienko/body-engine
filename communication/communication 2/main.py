@@ -9,10 +9,8 @@ def main():
     num_creatures = 9
     obs_per_creature = 41
     action_size = 12
-    max_steps = 1000
-    episodes = 15
-    flag_starting_radius = 3.5
-
+    max_steps = 2000
+    episodes = 101
     base_path = "/Users/andrewgordienko/Documents/body engine/communication/communication 2"
 
     input_dims = [obs_per_creature]
@@ -33,7 +31,9 @@ def main():
     axs[2].plot([], [], label='Critic Loss', color='green')
 
     for episode in range(episodes):
-        print(f"Episode {episode + 1}/{episodes}")
+        # Adjust flag starting radius based on the current episode
+        flag_starting_radius = 3
+        print(f"Episode {episode + 1}/{episodes} with flag starting radius: {flag_starting_radius}")
 
         xml_string, leg_info = create_ant_model(flag_starting_radius)
         xml_filename = f'{base_path}/xml_world_episode_{episode}.xml'

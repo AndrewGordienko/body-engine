@@ -4,23 +4,24 @@ import random
 from body_components import Torso, Leg
 import math
 
-joint_ranges = {
-    'hip': '-90 90',
-    'knee': '-90 90',
-    'ankle': '-50 50'  # New ankle joint range
-}
-motor_gears = {
-    'hip': 200,
-    'knee': 200,
-    'ankle': 200  # New gear for ankle motor
+joint_damping = {
+    'hip': '10.0',
+    'knee': '15.0',
+    'ankle': '20.0'
 }
 
-# Lower damping values for more fluid movement
-joint_damping = {
-    'hip': '2.0',
-    'knee': '4.0',
-    'ankle': '6.0'  # New damping value for ankle joint
+motor_gears = {
+    'hip': 150,
+    'knee': 150,
+    'ankle': 150
 }
+
+joint_ranges = {
+    'hip': '-60 60',
+    'knee': '-70 70',
+    'ankle': '-30 30'
+}
+
 
 def create_assets_xml():
     assets = ET.Element('asset')

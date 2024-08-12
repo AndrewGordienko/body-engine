@@ -5,7 +5,8 @@ import torch.optim as optim
 import numpy as np
 import os
 
-DEVICE = torch.device("cpu")
+# Set up device for GPU computations
+DEVICE = torch.device("mps") if torch.has_mps else torch.device("cpu")
 
 class ActorNetwork(nn.Module):
     def __init__(self, input_shape, action_space):
@@ -16,7 +17,7 @@ class ActorNetwork(nn.Module):
         self.fc3 = nn.Linear(512, action_space)
 
         self.log_std = nn.Parameter(torch.ones(1, action_space) * 0.01)
-        self.optimizer = optim.Adam(self.parameters(), lr=0.0003)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -35,7 +36,7 @@ class CriticNetwork(nn.Module):
         self.fc2 = nn.Linear(1024, 512)
         self.fc3 = nn.Linear(512, 1)
 
-        self.optimizer = optim.Adam(self.parameters(), lr=0.0003)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.to(DEVICE)
 
     def forward(self, state):
@@ -45,7 +46,7 @@ class CriticNetwork(nn.Module):
         return x
 
 class PPOMemory:
-    def __init__(self, batch_size, max_memory_size=1000):  # Default max_memory_size to 1000
+    def __init__(self, batch_size, max_memory_size=1000):
         self.states = []
         self.actions = []
         self.probs = []
@@ -103,79 +104,72 @@ class PPOMemory:
         self.rewards = []
         self.dones = []
 
-
 class PPOAgent:
-    def __init__(self, n_actions, input_dims, max_memory_size=1000):
+    def __init__(self, n_actions, input_dims, max_memory_size=18000):
         self.gamma = 0.99
         self.policy_clip = 0.2
-        self.n_epochs = 1
-        self.gae_lambda = 0.95
+        self.n_epochs = 5
+        self.gae_lambda = 0.9
 
-        self.actor = ActorNetwork(input_dims, n_actions)
-        self.critic = CriticNetwork(input_dims)
+        self.actor = ActorNetwork(input_dims, n_actions).to("cpu")  # Keep actor on CPU
+        self.critic = CriticNetwork(input_dims).to(DEVICE)  # Critic on GPU
         self.memory = PPOMemory(batch_size=256, max_memory_size=max_memory_size)
 
     def choose_action(self, observation):
-        state = torch.tensor(observation, dtype=torch.float32).to(DEVICE).unsqueeze(0)
+        # Action selection on CPU
+        state = torch.tensor(observation, dtype=torch.float32).unsqueeze(0).to("cpu")
         dist = self.actor(state)
         action = dist.sample()
         log_prob = dist.log_prob(action).sum(axis=-1)
-        value = self.critic(state)
+        value = self.critic(state.to(DEVICE))
 
-        return action.cpu().numpy(), log_prob.cpu().detach().numpy(), value.item()
+        return action.numpy(), log_prob.detach().numpy(), value.item()
 
     def learn(self):
+        print(f"Collected {len(self.memory.states)} data entries.")
+
         self.memory.shuffle_and_crop_memory()
 
-        actor_losses = []
-        critic_losses = []
+        state_arr, action_arr, old_prob_arr, vals_arr, reward_arr, dones_arr, batches = self.memory.generate_batches()
 
-        for _ in range(self.n_epochs):
-            state_arr, action_arr, old_prob_arr, vals_arr, reward_arr, dones_arr, batches = self.memory.generate_batches()
+        vals_arr = torch.tensor(vals_arr, dtype=torch.float32).to(DEVICE)
+        reward_arr = torch.tensor(reward_arr, dtype=torch.float32).to(DEVICE)
+        dones_arr = torch.tensor(dones_arr, dtype=torch.float32).to(DEVICE)
+        advantage = torch.zeros_like(reward_arr)
 
-            values = torch.tensor(vals_arr, dtype=torch.float32).to(DEVICE)
-            advantage = torch.zeros(len(reward_arr), dtype=torch.float32).to(DEVICE)
+        for t in range(len(reward_arr) - 1):
+            delta = reward_arr[t:-1] + self.gamma * vals_arr[t + 1:] * (1 - dones_arr[t:-1]) - vals_arr[t:-1]
+            advantage[t:-1] += delta
 
-            reward_arr = np.array(reward_arr, dtype=np.float32)
-            for t in range(len(reward_arr) - 1):
-                discount = 1
-                a_t = 0
-                for k in range(t, len(reward_arr) - 1):
-                    a_t += discount * (reward_arr[k] + self.gamma * values[k + 1] * (1 - int(dones_arr[k])) - values[k])
-                    discount *= self.gamma * self.gae_lambda
-                advantage[t] = a_t
+        for batch in batches:
+            states = torch.tensor(state_arr[batch], dtype=torch.float32).to(DEVICE)
+            old_probs = torch.tensor(old_prob_arr[batch], dtype=torch.float32).to(DEVICE)
+            actions = torch.tensor(action_arr[batch], dtype=torch.float32).to("cpu")  # Actions kept on CPU
 
-            for batch in batches:
-                states = torch.tensor(state_arr[batch], dtype=torch.float32).to(DEVICE)
-                old_probs = torch.tensor(old_prob_arr[batch], dtype=torch.float32).to(DEVICE)
-                actions = torch.tensor(action_arr[batch], dtype=torch.float32).to(DEVICE)
+            dist = self.actor(states.to("cpu"))
+            critic_value = self.critic(states).squeeze()
 
-                dist = self.actor(states)
-                critic_value = self.critic(states).squeeze()
+            new_probs = dist.log_prob(actions).sum(axis=-1).to(DEVICE)
 
-                new_probs = dist.log_prob(actions).sum(axis=-1)
+            prob_ratio = new_probs.exp() / old_probs.exp()
+            weighted_probs = advantage[batch] * prob_ratio
+            weighted_clipped_probs = torch.clamp(prob_ratio, 1 - self.policy_clip, 1 + self.policy_clip) * advantage[batch]
 
-                prob_ratio = new_probs.exp() / old_probs.exp()
-                weighted_probs = advantage[batch] * prob_ratio
-                weighted_clipped_probs = torch.clamp(prob_ratio, 1 - self.policy_clip, 1 + self.policy_clip) * advantage[batch]
+            actor_loss = -torch.min(weighted_probs, weighted_clipped_probs).mean()
+            returns = advantage[batch] + vals_arr[batch]
+            critic_loss = F.mse_loss(critic_value, returns)
 
-                actor_loss = -torch.min(weighted_probs, weighted_clipped_probs).mean()
-                actor_losses.append(actor_loss.item())
+            loss = actor_loss + 0.5 * critic_loss
 
-                returns = advantage[batch] + values[batch]
-                critic_loss = F.mse_loss(critic_value, returns)
-                critic_losses.append(critic_loss.item())
-
-                loss = actor_loss + 0.5 * critic_loss
-
-                self.actor.optimizer.zero_grad()
-                self.critic.optimizer.zero_grad()
-                loss.backward()
-                self.actor.optimizer.step()
-                self.critic.optimizer.step()
+            self.actor.optimizer.zero_grad()
+            self.critic.optimizer.zero_grad()
+            loss.backward()
+            self.actor.optimizer.step()
+            self.critic.optimizer.step()
 
         self.memory.clear_memory()
-        return np.mean(actor_losses), np.mean(critic_losses)  # Return the average losses
+
+        return actor_loss.item(), critic_loss.item()
 
     def remember(self, state, action, probs, vals, reward, done):
         self.memory.store_memory(state, action, probs, vals, reward, done)
@@ -187,3 +181,4 @@ class PPOAgent:
     def load_models(self, directory="./"):
         self.actor.load_state_dict(torch.load(os.path.join(directory, "PPO_Actor.pth")))
         self.critic.load_state_dict(torch.load(os.path.join(directory, "PPO_Critic.pth")))
+

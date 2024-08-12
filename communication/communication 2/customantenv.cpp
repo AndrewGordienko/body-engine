@@ -66,8 +66,10 @@ CustomAntEnv::CustomAntEnv(const char* model_path, int max_steps) : step_count(0
 
     // Initialize flag positions from XML file
     initializeFlagPositionsFromXML("/Users/andrewgordienko/Documents/body engine/communication/communication 2/ant_model.xml");
-}
 
+    // Calculate intermediate targets after initializing flag positions
+    calculateIntermediateTargets();
+}
 void CustomAntEnv::initializeFlagPositionsFromXML(const char* xml_file) {
     XMLDocument xmlDoc;
     XMLError eResult = xmlDoc.LoadFile(xml_file);
@@ -98,8 +100,10 @@ void CustomAntEnv::initializeFlagPositionsFromXML(const char* xml_file) {
             }
         }
     }
-}
 
+    // Calculate intermediate targets after flag positions are initialized
+    calculateIntermediateTargets();
+}
 void CustomAntEnv::loadNewModel(const std::string& xml_file) {
     if (d) {
         mj_deleteData(d);
@@ -315,11 +319,52 @@ bool CustomAntEnv::isDone() const {
     return step_count >= max_steps;
 }
 
-std::pair<int, double> CustomAntEnv::getClosestTargetIndexAndDistance(int creatureIdx, const Eigen::Vector3d& torso_position) const {
-    // Implement logic to find the closest target index and distance
-    // Placeholder return value
-    return { -1, std::numeric_limits<double>::max() };
+void CustomAntEnv::calculateIntermediateTargets() {
+    intermediate_targets.clear();
+
+    if (flag_positions.size() <= 0) {
+        std::cerr << "Flag positions not initialized.\n";
+        return;
+    }
+
+    for (int i = 0; i < NUM_CREATURES; ++i) {
+        if (i >= flag_positions.rows()) {
+            std::cerr << "Index out of bounds for flag_positions matrix.\n";
+            continue;
+        }
+
+        Eigen::Vector3d spawn_pos = getCreaturePosition(i);
+        Eigen::Vector3d target_pos = flag_positions.row(i);
+
+        std::vector<Eigen::Vector3d> creatureTargets;
+        for (int j = 1; j <= 5; ++j) {
+            double fraction = static_cast<double>(j) / 6.0;
+            Eigen::Vector3d intermediateTarget = spawn_pos + fraction * (target_pos - spawn_pos);
+            creatureTargets.push_back(intermediateTarget);
+        }
+        intermediate_targets.push_back(creatureTargets);
+    }
 }
+
+std::pair<int, double> CustomAntEnv::getClosestTargetIndexAndDistance(int creature_id, const Eigen::Vector3d& position) const {
+    if (creature_id >= intermediate_targets.size()) {
+        std::cerr << "Error: creature_id out of bounds.\n";
+        return {-1, std::numeric_limits<double>::max()};
+    }
+
+    int closestIndex = -1;
+    double closestDistance = std::numeric_limits<double>::max();
+
+    for (size_t i = 0; i < intermediate_targets[creature_id].size(); ++i) {
+        double distance = (intermediate_targets[creature_id][i] - position).norm();
+        if (distance < closestDistance) {
+            closestDistance = distance;
+            closestIndex = static_cast<int>(i);
+        }
+    }
+    return {closestIndex, closestDistance};
+}
+
 
 // Existing callback functions...
 
