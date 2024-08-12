@@ -44,7 +44,7 @@ private:
     static constexpr int MAX_LEGS = 4;
     static constexpr int MAX_PARTS_PER_LEG = 3;
     static constexpr int DATA_POINTS_PER_SUBPART = 3;
-    static constexpr int NUM_CREATURES = 9;
+    static constexpr int NUM_CREATURES = 20;
     static constexpr int DISTANCE_TO_TARGET_DIMS = 2; // Define this constant
     static constexpr int CONTROLS_PER_PART = 1; // Assuming one control per part
 

@@ -6,7 +6,7 @@ from ppo_agent import PPOAgent
 from asset_components import create_ant_model
 
 def main():
-    num_creatures = 9
+    num_creatures = 20
     obs_per_creature = 41
     action_size = 12
     max_steps = 2000

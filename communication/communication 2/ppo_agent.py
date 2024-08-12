@@ -17,7 +17,7 @@ class ActorNetwork(nn.Module):
         self.fc3 = nn.Linear(512, action_space)
 
         self.log_std = nn.Parameter(torch.ones(1, action_space) * 0.01)
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.0001)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -36,7 +36,7 @@ class CriticNetwork(nn.Module):
         self.fc2 = nn.Linear(1024, 512)
         self.fc3 = nn.Linear(512, 1)
 
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.parameters(), lr=0.0001)
         self.to(DEVICE)
 
     def forward(self, state):
@@ -105,7 +105,7 @@ class PPOMemory:
         self.dones = []
 
 class PPOAgent:
-    def __init__(self, n_actions, input_dims, max_memory_size=18000):
+    def __init__(self, n_actions, input_dims, max_memory_size=40000):
         self.gamma = 0.99
         self.policy_clip = 0.2
         self.n_epochs = 5
