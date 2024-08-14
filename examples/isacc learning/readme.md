@@ -1,0 +1,1 @@
+this folder is to play around with the issac gym and see if it can be better than just plain mujoco
