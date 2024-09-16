@@ -1,12 +1,13 @@
 import jax
 import jax.numpy as jnp
 import mujoco
+from mujoco import mjx
 import time
 from itertools import product
 from creature_exploration.asset_components import create_ant_model
-from creature_exploration.environment_class import CustomAntEnv  # Using your environment class
+from creature_exploration.environment_class import CustomAntEnv  # Import your custom environment
 
-# Define possible values for legs (4 legs)
+# Define possible values for legs (1 to 4 legs)
 legs = range(4, 5)
 
 # Define possible values for subparts per leg (2 to 3 subparts)
@@ -19,27 +20,23 @@ for num_legs in legs:
     for subparts in subpart_combinations:
         combinations.append((num_legs, subparts))
 
-# Function to generate random actions
-def random_actions(rng_key, num_joints):
-    return jax.random.uniform(rng_key, (num_joints,), minval=-1, maxval=1)
+# Function to step the simulation with random actions
+def simulate_step(mjx_model, mjx_data, action):
+    mjx_data = mjx_data.replace(ctrl=mjx_data.ctrl.at[:].set(action))
+    return mjx.step(mjx_model, mjx_data)
 
-# Function to create environments for each creature
-def create_creature_environments(num_creatures, xml_string, leg_info):
-    environments = []
-    for _ in range(num_creatures):
-        env = CustomAntEnv(xml_string, leg_info)
-        environments.append(env)
-    return environments
+# JIT compile the parallel step function
+jit_step_parallel = jax.jit(jax.vmap(simulate_step, in_axes=(None, 0, 0)))
+
+# Function to generate random actions
+def random_actions(rng_key, num_creatures, num_joints):
+    return jax.vmap(lambda key: jax.random.uniform(key, (num_joints,), minval=-1, maxval=1))(jax.random.split(rng_key, num_creatures))
 
 # Preload all environments and return them as a list
 def preload_and_prepare_environments(num_creatures):
     env_data = []
 
     for num_legs, subparts in combinations:
-        # Print statement to mark start of XML processing
-        print(f"Processing configuration: {num_legs} legs, subparts: {subparts}")
-        config_start_time = time.time()
-
         # Generate the filename for the XML
         subparts_str = "_".join(map(str, subparts))
         xml_filename = f'ant_model_{num_legs}legs_{subparts_str}subparts.xml'
@@ -47,36 +44,24 @@ def preload_and_prepare_environments(num_creatures):
         # Generate the XML for the ant model using the create_ant_model function
         create_ant_model(num_legs, list(subparts), num_creatures=1, xml_filename=xml_filename)
 
-        # Load the XML as a string
-        with open(xml_filename, 'r') as file:
-            xml_string = file.read()
+        # Read the XML content from the file
+        with open(xml_filename, 'r') as xml_file:
+            xml_content = xml_file.read()
 
-        # Mark the start of environment creation
-        print(f"Starting to create environments for {xml_filename}")
-        env_creation_start = time.time()
-
-        # Calculate the total number of joints
-        leg_info = subparts
-
-        # Create the environments for all creatures
-        environments = create_creature_environments(num_creatures, xml_string, leg_info)
-
-        env_creation_end = time.time()
-        print(f"Finished creating environments for {xml_filename} in {env_creation_end - env_creation_start:.4f} seconds")
+        # Create an instance of CustomAntEnv with the loaded XML string
+        leg_info = (num_legs, subparts)
+        custom_env = CustomAntEnv(xml_content, leg_info, num_creatures=num_creatures)
 
         # Store the environment data
         env_data.append({
             'xml_filename': xml_filename,
-            'environments': environments,
+            'env_instance': custom_env
         })
-
-        config_end_time = time.time()
-        print(f"Total time for configuration {xml_filename}: {config_end_time - config_start_time:.4f} seconds")
 
     return env_data
 
 # Preload and prepare all environments
-num_creatures = 1000  # Simulate 10 creatures per XML configuration
+num_creatures = 4000  # Simulate 4000 creatures across all configurations
 environments = preload_and_prepare_environments(num_creatures)
 
 # Simulation parameters
@@ -87,6 +72,7 @@ iterations = 15
 parallel_iteration_times = []  # List to store iteration times
 env_step_times = []  # List to store times for each environment's steps
 total_data_samples = 0  # To keep track of total data samples collected
+iteration_times = []
 
 # Run the simulation for all environments
 for iteration in range(iterations):
@@ -94,23 +80,36 @@ for iteration in range(iterations):
 
     print(f"Iteration {iteration + 1}/{iterations} started for all environments.")
 
-    # Iterate over each environment configuration and step each creature
+    # Iterate over each environment and step it for 25 timesteps
     for env in environments:
         env_start_time = time.time()  # Start timer for this environment
 
-        env_instances = env['environments']
+        custom_env = env['env_instance']
+        num_joints = custom_env.mj_data.ctrl.size
+        rng = custom_env.rng_key
 
-        # Step through each environment in parallel for 25 timesteps and log each step time
+        # Load model and data onto GPU just before stepping
+        mjx_model = custom_env.mj_model_gpu
+        mjx_data = custom_env.mj_data_gpu
+
+        # Create a batch of creatures
+        rng_batch = jax.random.split(rng, num_creatures)
+        batch = jax.vmap(lambda rng: mjx_data)(rng_batch)
+
+        # JIT compile and pre-warm parallel stepping function
+        start_parallel_load_time = time.time()
+        dummy_actions = random_actions(rng, num_creatures, num_joints)
+        _ = jit_step_parallel(mjx_model, batch, dummy_actions)  # Pre-warm
+        end_parallel_load_time = time.time()
+
+        print(f"Time to warm-up JIT and load batch for {num_creatures} creatures in ({env['xml_filename']}): {end_parallel_load_time - start_parallel_load_time:.4f} seconds")
+
+        # Step through the environment in parallel for 25 timesteps and log each step time
         for step in range(timesteps_per_iteration):
             step_start_time = time.time()
 
-            # Generate random actions for all creatures
-            rng = jax.random.PRNGKey(step)
-            actions = [random_actions(rng, sum(env_instance.leg_info)) for env_instance in env_instances]
-
-            # Step each environment with its respective actions
-            for i, custom_env in enumerate(env_instances):
-                custom_env.step(actions[i])
+            actions = random_actions(rng, num_creatures, num_joints)
+            batch = jit_step_parallel(mjx_model, batch, actions)  # Step the environment
 
             step_end_time = time.time()
             step_duration = step_end_time - step_start_time
@@ -136,6 +135,7 @@ for iteration in range(iterations):
     print(f"Iteration {iteration + 1}/{iterations} completed in {iteration_duration:.4f} seconds.")
     print(f"Data samples collected in this iteration: {data_samples_this_iteration}")
 
+# Total samples after all iterations
 total_samples = len(environments) * num_creatures * timesteps_per_iteration * iterations
 print(f"\nTotal data samples collected after all iterations: {total_samples}")
 
@@ -146,3 +146,8 @@ for i, time in enumerate(parallel_iteration_times, 1):
 
 total_time = sum(parallel_iteration_times)
 print(f"\nTotal time for all iterations: {total_time:.4f} seconds")
+
+# Optionally print individual environment step times
+# print("\nEnvironment Step Times:")
+# for env_filename, step_time in env_step_times:
+#    print(f"{env_filename}: {step_time:.4f} seconds")
